@@ -148,11 +148,11 @@
         });
 
         const map = L.map('map', { zoomControl: false }).setView([16.047079, 108.206230], 5);
-        const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-        const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri' });
-        const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
+        const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
+        const satelliteMap = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { attribution: '&copy; Google Maps', subdomains: ['0','1','2','3'], maxZoom: 20 });
+        const lightMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>', subdomains: 'abcd', maxZoom: 20 });
 
-        L.control.layers({ "Giao diện Tối": darkMap, "Vệ tinh": satelliteMap, "Đường phố": streetMap }).addTo(map);
+        L.control.layers({ "Tối (Không nhãn)": darkMap, "Vệ tinh (Không nhãn)": satelliteMap, "Sáng (Không nhãn)": lightMap }).addTo(map);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
         map.pm.addControls({ position: 'topleft', drawCircle: false, drawCircleMarker: false, drawText: false, cutPolygon: false });
