@@ -122,7 +122,7 @@
                             <th>Tên File</th>
                             <th>Vĩ độ (Lat)</th>
                             <th>Kinh độ (Lng)</th>
-                            <th>Độ cao (m)</th>
+                            <th>Cao độ mặt đất (m MSL)</th>
                         </tr>
                     </thead>
                     <tbody id="validBody"></tbody>
@@ -235,12 +235,159 @@
         }
 
         // Auto Save Geoman
-        map.on('pm:create', function(e) {
+        let drawnMarkerCounter = 0;
+
+        // Chuyển đổi Decimal Degrees sang DMS
+        function toDMS(decimal, isLat) {
+            const abs = Math.abs(decimal);
+            const d = Math.floor(abs);
+            const m = Math.floor((abs - d) * 60);
+            const s = ((abs - d) * 60 - m) * 60;
+            const dir = isLat ? (decimal >= 0 ? 'N' : 'S') : (decimal >= 0 ? 'E' : 'W');
+            return `${d}°${String(m).padStart(2,'0')}'${s.toFixed(2)}"${dir}`;
+        }
+
+        // Xây dựng nội dung popup đầy đủ thông tin
+        function buildPopupHTML(data, elevLoading = false) {
+            const isDrawn = data._drawn;
+            const icon = isDrawn ? '📌' : '🖼️';
+            const typeLabel = isDrawn ? 'Điểm đánh dấu' : 'Ảnh GPS';
+            const latDMS = toDMS(data.lat, true);
+            const lngDMS = toDMS(data.lng, false);
+
+            let elevHTML;
+            if (elevLoading) {
+                elevHTML = `<span style="color:#f59e0b;font-style:italic;">⏳ Đang truy vấn...</span>`;
+            } else if (data.alt === null || data.alt === undefined || data.alt === '') {
+                elevHTML = `<span style="color:#94a3b8;">Không có dữ liệu</span>`;
+            } else {
+                elevHTML = `<span style="color:#10b981;font-weight:700;font-size:14px;">${data.alt} m</span>`;
+            }
+
+            return `
+            <div style="min-width:260px;font-family:'Segoe UI',Roboto,sans-serif;">
+                <div style="background:#0f172a;padding:10px 14px;margin:-12px -12px 12px;border-radius:6px 6px 0 0;border-bottom:2px solid #0ea5e9;">
+                    <div style="font-size:13px;font-weight:700;color:#38bdf8;">${icon} ${data.file}</div>
+                    <div style="font-size:10px;color:#64748b;margin-top:2px;text-transform:uppercase;letter-spacing:.5px;">${typeLabel}</div>
+                </div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;line-height:1.8;">
+                    <tr>
+                        <td style="color:#94a3b8;padding:3px 0;width:120px;">🌐 Vĩ độ (DD)</td>
+                        <td style="color:#f1f5f9;text-align:right;font-family:monospace;">${data.lat}</td>
+                    </tr>
+                    <tr>
+                        <td style="color:#94a3b8;padding:3px 0;">🌐 Kinh độ (DD)</td>
+                        <td style="color:#f1f5f9;text-align:right;font-family:monospace;">${data.lng}</td>
+                    </tr>
+                    <tr style="border-top:1px solid #1e293b;">
+                        <td style="color:#94a3b8;padding:3px 0;">📐 Vĩ độ (DMS)</td>
+                        <td style="color:#cbd5e1;text-align:right;font-size:11px;">${latDMS}</td>
+                    </tr>
+                    <tr>
+                        <td style="color:#94a3b8;padding:3px 0;">📐 Kinh độ (DMS)</td>
+                        <td style="color:#cbd5e1;text-align:right;font-size:11px;">${lngDMS}</td>
+                    </tr>
+                    <tr style="border-top:1px solid #1e293b;">
+                        <td style="color:#94a3b8;padding:4px 0;">⛰️ Cao độ mặt đất</td>
+                        <td style="text-align:right;">${elevHTML}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="font-size:10px;color:#475569;padding-top:4px;">So với mực nước biển (SRTM 30m)</td>
+                    </tr>
+                </table>
+            </div>`;
+        }
+
+        // Lấy cao độ mặt đất thực tế từ API OpenTopoData (SRTM 30m)
+        async function fetchElevation(lat, lng) {
+            try {
+                const res = await fetch(`https://api.opentopodata.org/v1/srtm30m?locations=${lat},${lng}`);
+                const json = await res.json();
+                if (json.results && json.results[0] && json.results[0].elevation !== null) {
+                    return Number(json.results[0].elevation.toFixed(2));
+                }
+            } catch(err) {}
+            // Fallback: thử Open-Elevation
+            try {
+                const res2 = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+                const json2 = await res2.json();
+                if (json2.results && json2.results[0] && json2.results[0].elevation !== null) {
+                    return Number(json2.results[0].elevation.toFixed(2));
+                }
+            } catch(err2) {}
+            return null;
+        }
+
+        map.on('pm:create', async function(e) {
+            let layer = e.layer;
+
+            // Nếu là Marker tích trên bản đồ → thêm vào bảng kết quả
+            if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
+                let ll = layer.getLatLng();
+                drawnMarkerCounter++;
+                let dataPoint = {
+                    file: `Điểm_${drawnMarkerCounter}`,
+                    lat: Number(ll.lat.toFixed(7)),
+                    lng: Number(ll.lng.toFixed(7)),
+                    alt: null,
+                    _drawn: true
+                };
+                extractedData.push(dataPoint);
+                layer._dataRef = dataPoint;
+
+                // Gắn popup với trạng thái đang tải cao độ
+                layer.bindPopup(buildPopupHTML(dataPoint, true), { maxWidth: 320 }).openPopup();
+
+                renderValidRow(dataPoint);
+                updateStats();
+
+                // Lấy cao độ thực tế mặt đất từ API
+                fetchElevation(dataPoint.lat, dataPoint.lng).then(elev => {
+                    dataPoint.alt = elev !== null ? elev : 'N/A';
+                    // Cập nhật popup
+                    layer.setPopupContent(buildPopupHTML(dataPoint, false));
+                    // Cập nhật bảng
+                    validBody.innerHTML = "";
+                    extractedData.forEach(d => renderValidRow(d));
+                    saveState();
+                });
+
+                // Khi kéo marker → cập nhật tọa độ + cao độ trong bảng
+                layer.on('pm:dragend', async function() {
+                    let ll2 = layer.getLatLng();
+                    dataPoint.lat = Number(ll2.lat.toFixed(7));
+                    dataPoint.lng = Number(ll2.lng.toFixed(7));
+                    dataPoint.alt = null;
+                    layer.setPopupContent(buildPopupHTML(dataPoint, true));
+                    validBody.innerHTML = "";
+                    extractedData.forEach(d => renderValidRow(d));
+                    const elev2 = await fetchElevation(dataPoint.lat, dataPoint.lng);
+                    dataPoint.alt = elev2 !== null ? elev2 : 'N/A';
+                    layer.setPopupContent(buildPopupHTML(dataPoint, false));
+                    validBody.innerHTML = "";
+                    extractedData.forEach(d => renderValidRow(d));
+                    saveState();
+                });
+            } else {
+                layer.on('pm:edit', saveState);
+                layer.on('pm:dragend', saveState);
+            }
+
             saveState();
-            e.layer.on('pm:edit', saveState);
-            e.layer.on('pm:dragend', saveState);
         });
-        map.on('pm:remove', saveState);
+
+        map.on('pm:remove', function(e) {
+            let layer = e.layer;
+            // Nếu xóa marker đã tích → xóa khỏi bảng
+            if (layer._dataRef) {
+                let idx = extractedData.indexOf(layer._dataRef);
+                if (idx > -1) extractedData.splice(idx, 1);
+                validBody.innerHTML = "";
+                extractedData.forEach(d => renderValidRow(d));
+                updateStats();
+            }
+            saveState();
+        });
 
         // ==========================================
         // 3. XỬ LÝ TRÍCH XUẤT HÌNH ẢNH 
@@ -282,20 +429,23 @@
                             if (lat && lon) {
                                 let latDD = convertToDD(lat, latRef);
                                 let lonDD = convertToDD(lon, lonRef);
-                                let altValue = parseAltitude(alt, altRef);
-                                
-                                let dataPoint = { file: file.name, lat: latDD, lng: lonDD, alt: altValue };
+
+                                let dataPoint = { file: file.name, lat: latDD, lng: lonDD, alt: null };
                                 extractedData.push(dataPoint);
                                 renderValidRow(dataPoint);
 
-                                let marker = L.marker([latDD, lonDD]).bindPopup(`
-                                    <div class="text-sm">
-                                        <strong class="text-blue-400"><i class="fa-regular fa-image"></i> ${file.name}</strong><br/>
-                                        <span class="text-slate-300">Lat: ${latDD}</span><br/>
-                                        <span class="text-slate-300">Lng: ${lonDD}</span>
-                                    </div>
-                                `);
+                                // Tạo marker với popup đang tải cao độ
+                                let marker = L.marker([latDD, lonDD])
+                                    .bindPopup(buildPopupHTML(dataPoint, true), { maxWidth: 320 });
                                 markersCluster.addLayer(marker);
+
+                                // Lấy cao độ mặt đất thực tế từ API (không dùng EXIF GPS alt)
+                                fetchElevation(latDD, lonDD).then(elev => {
+                                    dataPoint.alt = elev !== null ? elev : 'N/A';
+                                    marker.setPopupContent(buildPopupHTML(dataPoint, false));
+                                    validBody.innerHTML = "";
+                                    extractedData.forEach(d => renderValidRow(d));
+                                });
                             } else { renderInvalidRow(file.name); }
                             
                             updateStats();
@@ -328,11 +478,22 @@
 
         function renderValidRow(data) {
             const row = validBody.insertRow();
+            const icon = data._drawn
+                ? '<i class="fa-solid fa-map-pin mr-1" style="color:#10b981"></i>'
+                : '<i class="fa-regular fa-image mr-1"></i>';
+            let altDisplay;
+            if (data.alt === null || data.alt === undefined) {
+                altDisplay = '<span style="color:#94a3b8;font-style:italic">Đang tải...</span>';
+            } else if (data.alt === 'N/A') {
+                altDisplay = '<span style="color:#ef4444;">N/A</span>';
+            } else {
+                altDisplay = `<span style="color:#10b981;font-weight:600;">${data.alt} m</span>`;
+            }
             row.innerHTML = `
-                <td class="text-blue-300"><i class="fa-regular fa-image mr-1"></i> ${data.file}</td>
-                <td class="text-slate-300">${data.lat}</td>
-                <td class="text-slate-300">${data.lng}</td>
-                <td class="text-slate-300">${data.alt > 0 ? data.alt : "N/A"}</td>
+                <td class="text-blue-300">${icon} ${data.file}</td>
+                <td class="text-slate-300" style="font-family:monospace">${data.lat}</td>
+                <td class="text-slate-300" style="font-family:monospace">${data.lng}</td>
+                <td>${altDisplay}</td>
             `;
         }
 
@@ -406,10 +567,9 @@
             let counter = 1;
             map.pm.getGeomanLayers().forEach(layer => {
                 let shape = layer.pm._shape || "Feature";
+                // Bỏ qua Marker vì đã có trong extractedData (được thêm lúc tích điểm)
                 if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
-                    let ll = layer.getLatLng();
-                    data.push({ file: `Drawn_${shape}_${counter}`, lat: Number(ll.lat.toFixed(7)), lng: Number(ll.lng.toFixed(7)), alt: 0 });
-                    counter++;
+                    return;
                 } else if (typeof layer.getLatLngs === 'function') {
                     let flatCoords = flattenLatLngs(layer.getLatLngs());
                     flatCoords.forEach((ll, idx) => {
@@ -430,6 +590,8 @@
             }));
 
             map.pm.getGeomanLayers().forEach((layer, idx) => {
+                // Bỏ qua Marker vì đã có trong extractedData
+                if (layer instanceof L.Marker || layer instanceof L.CircleMarker) return;
                 let geo = layer.toGeoJSON();
                 geo.properties = geo.properties || {};
                 geo.properties.name = `Drawn ${layer.pm._shape || 'Feature'} ${idx+1}`;
