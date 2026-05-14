@@ -429,33 +429,73 @@ function loadData() {
 
 function saveData() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits));
-    localStorage.setItem(TODAY_KEY, JSON.stringify({date:todayDate, counts:todayData}));
-  } catch(e){}
+    const SUPABASE_URL = 'https://aooxycmsmwhxhmkybsrf.supabase.co/rest/v1/';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvb3h5Y21zbXdoeGhta3lic3JmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1OTU0NjIsImV4cCI6MjA5NDE3MTQ2Mn0.oRMx21r9vTTbYcgJc19RjJV98umT0NYOxCruFcwvgOs'; // anon key của 
+
+// Hàm lấy thống kê 1 tool
+async function getToolStats(toolName) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/tool_stats?tool_name=eq.${toolName}`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  const data = await res.json();
+  return data[0] || null;
 }
 
-function recordVisit(id) {
-  visits[id]    = (visits[id]   ||0) + 1;
-  todayData[id] = (todayData[id]||0) + 1;
-  saveData();
-  updateStats();
+// Hàm tăng lượt dùng khi click
+async function incrementVisit(toolName) {
+  const today = new Date().toISOString().split('T')[0]; // "2026-05-14"
+  const existing = await getToolStats(toolName);
+
+  if (!existing) {
+    // Chưa có → tạo mới
+    await fetch(`${SUPABASE_URL}/rest/v1/tool_stats`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tool_name: toolName,
+        total_visits: 1,
+        today_visits: 1,
+        last_date: today
+      })
+    });
+  } else {
+    // Đã có → cập nhật
+    const todayCount = existing.last_date === today 
+      ? existing.today_visits + 1 
+      : 1; // Reset nếu sang ngày mới
+
+    await fetch(`${SUPABASE_URL}/rest/v1/tool_stats?tool_name=eq.${toolName}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        total_visits: existing.total_visits + 1,
+        today_visits: todayCount,
+        last_date: today
+      })
+    });
+  }
 }
 
-// ================================================================
-// STATS
-// ================================================================
-function getTotalVisits(){ return Object.values(visits).reduce((a,b)=>a+b,0); }
-function getTodayVisits(){ return Object.values(todayData).reduce((a,b)=>a+b,0); }
-
-function updateStats(){
-  const t = getTotalVisits();
-  document.getElementById('totalVisits').textContent = t.toLocaleString('vi-VN');
-  document.getElementById('grandTotal').textContent  = t.toLocaleString('vi-VN');
-  document.getElementById('todayVisits').textContent = getTodayVisits().toLocaleString('vi-VN');
-  document.getElementById('totalTools').textContent  = TOOLS.length;
-  document.querySelectorAll('[data-visitnum]').forEach(el =>
-    el.textContent = (visits[el.getAttribute('data-visitnum')]||0).toLocaleString('vi-VN')
-  );
+// Hàm lấy tổng tất cả tool
+async function getAllStats() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/tool_stats`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`
+    }
+  });
+  return await res.json();
 }
 
 // ================================================================
