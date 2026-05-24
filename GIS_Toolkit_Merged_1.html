@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIS Toolkit – Bộ Công Cụ GIS Tổng Hợp</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"/>
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/fold/foldgutter.min.css"/>
+
+<style>
+/* ===== GLOBAL ===== */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',Roboto,Arial,sans-serif;}
+body{display:flex;flex-direction:column;background:#0f172a;color:#f8fafc;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#0f172a;}
+::-webkit-scrollbar-thumb{background:#475569;border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:#64748b;}
+button{cursor:pointer;}
+
+/* ===== TAB NAVIGATION ===== */
+.tab-nav{display:flex;align-items:stretch;background:#1e293b;border-bottom:2px solid #334155;flex-shrink:0;z-index:2000;height:46px;}
+.tab-nav-logo{padding:0 16px;display:flex;align-items:center;gap:8px;color:#38bdf8;font-weight:700;font-size:14px;letter-spacing:.8px;border-right:1px solid #334155;white-space:nowrap;}
+.tab-btn{padding:0 18px;background:none;border:none;border-bottom:3px solid transparent;color:#94a3b8;font-size:12px;font-weight:600;display:flex;align-items:center;gap:7px;transition:all .2s;white-space:nowrap;}
+.tab-btn:hover{color:#e2e8f0;background:rgba(255,255,255,0.03);}
+.tab-btn.active{color:#38bdf8;border-bottom-color:#38bdf8;background:rgba(56,189,248,0.06);}
+
+/* ===== TOOL PANELS ===== */
+.tool-panel{display:none;flex:1;overflow:hidden;height:calc(100vh - 46px);}
+.tool-panel.active{display:flex;}
+
+/* ===== SHARED HELPERS ===== */
+.spin{animation:spin 1s linear infinite;display:inline-block;}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+.toast-msg{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#334155;color:#f1f5f9;padding:8px 18px;border-radius:20px;font-size:12px;z-index:99999;pointer-events:none;opacity:0;transition:opacity .3s;}
+.toast-msg.show{opacity:1;}
+
+/* ===== TOOL 1: KML VIEWER ===== */
+#panel-kml{background:#f0f2f5;}
+.k-sidebar{width:290px;min-width:290px;background:#f8f9fa;padding:12px;display:flex;flex-direction:column;gap:10px;border-right:1px solid #dee2e6;z-index:10;}
+.k-card{background:#fff;border:1px solid #dee2e6;border-radius:7px;}
+.k-upload-card{padding:12px;}
+.k-upload-box{border:2px dashed #ced4da;border-radius:6px;padding:16px 10px;text-align:center;cursor:pointer;transition:all .2s;}
+.k-upload-box:hover,.k-upload-box.dragover{border-color:#28a745;background:#f8fff9;}
+.k-upload-icon{font-size:22px;color:#6c757d;margin-bottom:7px;}
+.k-upload-title{font-weight:700;font-size:13px;color:#343a40;margin-bottom:3px;}
+.k-upload-sub{font-size:11px;color:#6c757d;margin-bottom:10px;}
+.k-btn-choose{background:#28a745;color:#fff;border:none;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:700;}
+.k-btn-choose:hover{background:#218838;}
+.k-layers-card{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.k-layers-header{padding:9px 12px;border-bottom:1px solid #dee2e6;font-weight:700;font-size:12px;color:#343a40;display:flex;align-items:center;gap:6px;}
+.k-layers-content{padding:10px;flex:1;overflow-y:auto;}
+.k-no-file{text-align:center;color:#adb5bd;font-size:12px;margin-top:14px;}
+.k-layer-item{display:flex;justify-content:space-between;align-items:center;padding:7px;border:1px solid #eee;border-radius:4px;margin-bottom:5px;font-size:11px;color:#343a40;}
+.k-layer-item button{background:none;border:none;padding:2px 4px;}
+.k-map-wrap{flex:1;position:relative;}
+#mapKML{width:100%;height:100%;background:#aad3df;}
+.k-loading{display:none;position:absolute;inset:0;background:rgba(255,255,255,.8);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:13px;color:#333;}
+.k-basemap-toggle{position:absolute;top:10px;left:10px;z-index:800;display:flex;background:#fff;border-radius:2px;box-shadow:0 1px 4px rgba(0,0,0,.3);overflow:hidden;}
+.k-bm-btn{padding:6px 10px;background:#fff;border:none;font-size:12px;color:#565656;}
+.k-bm-btn.active{font-weight:700;color:#000;}
+.k-bm-btn:not(:last-child){border-right:1px solid #ebebeb;}
+.k-coord{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);z-index:600;background:rgba(255,255,255,.88);padding:3px 10px;border-radius:20px;font-size:10px;font-family:monospace;color:#333;box-shadow:0 1px 3px rgba(0,0,0,.2);pointer-events:none;white-space:nowrap;}
+
+/* ===== TOOL 2: GEOJSON EDITOR ===== */
+#panel-geojson{background:#111827;}
+.gj-left{width:250px;min-width:220px;background:#1e293b;border-right:1px solid #334155;display:flex;flex-direction:column;}
+.gj-left-hdr{padding:10px 12px;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center;}
+.gj-left-title{font-weight:700;font-size:12px;color:#e2e8f0;}
+.gj-feat-count{font-size:10px;color:#64748b;background:#0f172a;padding:2px 7px;border-radius:10px;}
+.gj-feat-list{flex:1;overflow-y:auto;padding:7px;}
+.gj-feat-item{padding:7px 9px;border-radius:5px;margin-bottom:3px;background:#0f172a;border:1px solid #334155;cursor:pointer;font-size:11px;color:#cbd5e1;display:flex;align-items:center;gap:7px;transition:background .15s;}
+.gj-feat-item:hover,.gj-feat-item.selected{background:#1e3a5f;border-color:#3b82f6;color:#e2e8f0;}
+.gj-left-footer{padding:9px;border-top:1px solid #334155;}
+.gj-import-btn{width:100%;padding:8px;background:#3b82f6;border:none;color:#fff;border-radius:5px;font-size:12px;font-weight:700;transition:background .15s;}
+.gj-import-btn:hover{background:#2563eb;}
+.gj-map-wrap{flex:1;position:relative;}
+#mapGeoJSON{width:100%;height:100%;}
+.gj-coord{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#e2e8f0;padding:3px 10px;border-radius:10px;font-size:10px;font-family:monospace;pointer-events:none;z-index:500;white-space:nowrap;}
+.gj-right{width:330px;min-width:280px;background:#1e293b;border-left:1px solid #334155;display:flex;flex-direction:column;}
+.gj-tabs{display:flex;border-bottom:1px solid #334155;}
+.gj-tab-btn{flex:1;padding:9px;background:none;border:none;color:#64748b;font-size:11px;font-weight:700;border-bottom:2px solid transparent;transition:all .15s;}
+.gj-tab-btn.active{color:#3b82f6;border-bottom-color:#3b82f6;}
+.gj-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+.gj-panel.hidden{display:none!important;}
+.gj-json-wrap{flex:1;overflow:auto;min-height:0;}
+.gj-tbl-wrap{flex:1;overflow:auto;min-height:0;}
+.gj-tbl{width:100%;border-collapse:collapse;font-size:10px;}
+.gj-tbl th{background:#0f172a;color:#64748b;padding:6px 8px;text-align:left;position:sticky;top:0;z-index:2;font-size:10px;text-transform:uppercase;}
+.gj-tbl td{padding:5px 8px;border-bottom:1px solid #1e3a5f;color:#cbd5e1;}
+.gj-tbl tr:hover td{background:rgba(255,255,255,.03);}
+.gj-right-footer{padding:9px;border-top:1px solid #334155;display:flex;flex-direction:column;gap:5px;}
+.gj-export-row{display:flex;gap:5px;}
+.gj-exp-btn{flex:1;padding:6px;background:#334155;border:none;color:#e2e8f0;border-radius:4px;font-size:11px;font-weight:600;transition:background .15s;}
+.gj-exp-btn:hover{background:#475569;}
+.gj-apply-btn{width:100%;padding:7px;background:#10b981;border:none;color:#fff;border-radius:4px;font-size:11px;font-weight:700;transition:background .15s;}
+.gj-apply-btn:hover{background:#059669;}
+/* CodeMirror */
+.CodeMirror{height:100%!important;font-size:11px!important;background:#0f172a!important;color:#e2e8f0!important;font-family:'JetBrains Mono','Fira Code',monospace!important;}
+.CodeMirror-gutters{background:#0f172a!important;border-right:1px solid #1e3a5f!important;}
+
+/* ===== TOOL 3: GEOVISION PRO ===== */
+#panel-geovision{background:#0f172a;}
+.gv-sidebar{width:300px;min-width:260px;background:#1e293b;border-right:1px solid #334155;display:flex;flex-direction:column;overflow:hidden;}
+.gv-header{padding:14px 16px;background:#0f172a;border-bottom:1px solid #334155;}
+.gv-header h1{font-size:14px;font-weight:700;color:#22d3ee;display:flex;align-items:center;gap:7px;}
+.gv-header p{font-size:10px;color:#64748b;margin-top:2px;}
+.gv-ctrl{padding:12px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+.gv-sec-title{font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;}
+.gv-drop-box{border:2px dashed #3b82f6;border-radius:7px;padding:18px 10px;text-align:center;cursor:pointer;background:rgba(59,130,246,.05);transition:all .2s;}
+.gv-drop-box:hover{background:rgba(59,130,246,.12);}
+.gv-export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.gv-exp-btn{padding:7px;background:#334155;border:none;color:#e2e8f0;border-radius:4px;font-size:11px;display:flex;align-items:center;justify-content:center;gap:4px;transition:background .15s;}
+.gv-exp-btn:hover{background:#475569;}
+.gv-tool-row{display:flex;gap:5px;}
+.gv-tool-btn{flex:1;padding:7px;background:#334155;border:none;color:#e2e8f0;border-radius:4px;font-size:11px;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .15s;}
+.gv-tool-btn:hover:not(:disabled){background:#0ea5e9;}
+.gv-tool-btn:disabled{opacity:.4;cursor:not-allowed;}
+.gv-danger-btn{width:100%;padding:7px;background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:4px;font-size:11px;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .15s;}
+.gv-danger-btn:hover{background:#ef4444;color:#fff;}
+.gv-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#mapGeoVision{flex:0 0 55%;min-height:150px;}
+.gv-table-panel{flex:1;display:flex;flex-direction:column;background:#0f172a;overflow:hidden;}
+.gv-tbl-hdr{padding:7px 12px;background:#1e293b;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center;}
+.gv-tbl-hdr h2{font-size:11px;font-weight:700;color:#10b981;display:flex;align-items:center;gap:5px;}
+.gv-tbl-stats{font-size:10px;background:#0f172a;padding:2px 9px;border-radius:10px;border:1px solid #334155;}
+.gv-tbl-body{flex:1;overflow-y:auto;padding:10px;}
+.gv-tbl{width:100%;border-collapse:collapse;}
+.gv-tbl th{background:#1e293b;color:#64748b;padding:7px 10px;text-align:left;font-size:10px;text-transform:uppercase;position:sticky;top:0;z-index:2;}
+.gv-tbl td{padding:6px 10px;border-bottom:1px solid #1e293b;font-size:11px;color:#cbd5e1;}
+.gv-tbl tr:hover td{background:rgba(255,255,255,.02);}
+.gv-err-cont{margin-top:12px;padding-top:10px;border-top:1px dashed #334155;}
+.gv-err-cont h3{color:#f87171;font-size:11px;font-weight:700;margin-bottom:6px;}
+
+/* ===== TOOL 4: GEODATA PLATFORM ===== */
+#panel-geodata{background:#f1f5f9;}
+.gd-sidebar{width:350px;min-width:280px;background:#0f172a;color:#f8fafc;display:flex;flex-direction:column;box-shadow:4px 0 15px rgba(0,0,0,.3);z-index:10;}
+.gd-header{padding:14px 16px;background:#1e293b;border-bottom:1px solid rgba(255,255,255,.05);}
+.gd-header h1{font-size:14px;font-weight:700;color:#3b82f6;display:flex;align-items:center;gap:8px;}
+.gd-header p{font-size:10px;color:#94a3b8;margin-top:2px;}
+.gd-ctrl{padding:14px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+.gd-form-lbl{display:block;font-size:11px;margin-bottom:5px;color:#cbd5e1;font-weight:600;}
+.gd-search-box{display:flex;gap:5px;}
+.gd-search-input{flex:1;padding:8px;border-radius:5px;border:1px solid #334155;background:#1e293b;color:#fff;outline:none;font-size:12px;}
+.gd-search-input:focus{border-color:#3b82f6;}
+.gd-search-btn{padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:5px;font-size:12px;}
+.gd-search-btn:hover{background:#2563eb;}
+.gd-layer-box{background:#1e293b;padding:9px;border-radius:6px;display:flex;justify-content:space-between;border:1px solid #334155;flex-wrap:wrap;gap:5px;}
+.gd-layer-box label{cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;}
+.gd-pt-list-wrap{background:#1e293b;border-radius:6px;padding:8px;border:1px solid #334155;}
+.gd-pt-list{list-style:none;max-height:150px;overflow-y:auto;}
+.gd-pt-item{background:rgba(255,255,255,.03);padding:7px;border-radius:5px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;border-left:3px solid #3b82f6;}
+.gd-pt-info{font-size:11px;}
+.gd-pt-info span{display:block;color:#94a3b8;margin-top:1px;font-size:10px;}
+.gd-action-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.gd-action-btn{padding:7px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;border-radius:4px;font-size:11px;display:flex;align-items:center;justify-content:center;gap:4px;transition:background .15s;}
+.gd-action-btn:hover{background:#334155;}
+.gd-file-upload{position:relative;overflow:hidden;}
+.gd-file-upload input[type=file]{position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;top:0;left:0;}
+.gd-upload-btn{width:100%;padding:8px;background:#10b981;color:#fff;border:none;border-radius:5px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:700;}
+.gd-upload-btn:hover{background:#059669;}
+.gd-clear-btn{width:100%;padding:7px;background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:4px;font-size:11px;display:flex;align-items:center;justify-content:center;gap:5px;}
+.gd-clear-btn:hover{background:#ef4444;color:#fff;}
+#mapGeoData{flex:1;height:100%;}
+
+/* Leaflet popup dark */
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#1e293b;color:#f8fafc;border:1px solid #334155;}
+.leaflet-popup-content-wrapper a{color:#38bdf8;}
+</style>
+</head>
+<body>
+
+<!-- ===== TAB NAVIGATION ===== -->
+<nav class="tab-nav">
+  <div class="tab-nav-logo"><i class="fa-solid fa-earth-asia"></i> GIS Toolkit</div>
+  <button class="tab-btn active" data-tab="kml" onclick="switchTab('kml')"><i class="fa-solid fa-file-code"></i> KML Viewer</button>
+  <button class="tab-btn" data-tab="geojson" onclick="switchTab('geojson')"><i class="fa-solid fa-draw-polygon"></i> GeoJSON Editor</button>
+  <button class="tab-btn" data-tab="geovision" onclick="switchTab('geovision')"><i class="fa-solid fa-camera-retro"></i> GeoVision Pro</button>
+  <button class="tab-btn" data-tab="geodata" onclick="switchTab('geodata')"><i class="fa-solid fa-map-pin"></i> GeoData Platform</button>
+</nav>
+
+<!-- ================================================================
+     TOOL 1: KML VIEWER
+================================================================ -->
+<div id="panel-kml" class="tool-panel active">
+  <div class="k-sidebar">
+    <div class="k-card k-upload-card">
+      <div class="k-upload-box" id="kDrop">
+        <div class="k-upload-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+        <div class="k-upload-title">Upload KML / KMZ / GeoJSON</div>
+        <div class="k-upload-sub">Kéo thả hoặc nhấn chọn file</div>
+        <button class="k-btn-choose" id="kChooseBtn">Chọn File</button>
+        <input type="file" id="kFileInput" accept=".kml,.kmz,.geojson,.json" style="display:none" multiple/>
+      </div>
+    </div>
+    <div class="k-card k-layers-card">
+      <div class="k-layers-header"><i class="fa-solid fa-layer-group"></i> Danh sách lớp</div>
+      <div class="k-layers-content" id="kLayerList">
+        <div class="k-no-file">Chưa có file nào được tải</div>
+      </div>
+    </div>
+  </div>
+  <div class="k-map-wrap">
+    <div class="k-loading" id="kLoading"><i class="fa-solid fa-spinner spin fa-2x"></i><span>Đang xử lý...</span></div>
+    <div id="mapKML"></div>
+    <div class="k-basemap-toggle">
+      <button class="k-bm-btn" id="kBtnMap">Bản đồ</button>
+      <button class="k-bm-btn active" id="kBtnSat">Vệ tinh</button>
+      <button class="k-bm-btn" id="kBtnHybrid">Hybrid</button>
+    </div>
+    <div class="k-coord" id="kCoord">Lat: 16.04708 | Lng: 108.20623 | Zoom: 5</div>
+  </div>
+</div>
+
+<!-- ================================================================
+     TOOL 2: GEOJSON EDITOR
+================================================================ -->
+<div id="panel-geojson" class="tool-panel">
+  <div class="gj-left">
+    <div class="gj-left-hdr">
+      <span class="gj-left-title">Đối tượng</span>
+      <span class="gj-feat-count" id="gjFeatCount">0 features</span>
+    </div>
+    <div class="gj-feat-list" id="gjFeatList"></div>
+    <div class="gj-left-footer">
+      <button class="gj-import-btn" id="gjImportBtn"><i class="fa-solid fa-file-import"></i> Import GeoJSON / KML</button>
+      <input type="file" id="gjFileInput" accept=".geojson,.json,.kml,.kmz" style="display:none" multiple/>
+    </div>
+  </div>
+  <div class="gj-map-wrap">
+    <div id="mapGeoJSON"></div>
+    <div class="gj-coord" id="gjCoord">0.000000, 0.000000</div>
+  </div>
+  <div class="gj-right">
+    <div class="gj-tabs">
+      <button class="gj-tab-btn active" id="gjTabJSON" onclick="gjSwitchTab('json')">JSON</button>
+      <button class="gj-tab-btn" id="gjTabTable" onclick="gjSwitchTab('table')">Bảng thuộc tính</button>
+    </div>
+    <div class="gj-panel" id="gjPanelJSON">
+      <div class="gj-json-wrap" id="gjEditorWrap"><textarea id="gjJsonTextarea"></textarea></div>
+    </div>
+    <div class="gj-panel hidden" id="gjPanelTable">
+      <div class="gj-tbl-wrap"><table class="gj-tbl"><thead><tr id="gjTblHead"></tr></thead><tbody id="gjTblBody"></tbody></table></div>
+    </div>
+    <div class="gj-right-footer">
+      <button class="gj-apply-btn" id="gjApplyBtn"><i class="fa-solid fa-check"></i> Áp dụng JSON lên bản đồ</button>
+      <div class="gj-export-row">
+        <button class="gj-exp-btn" onclick="gjExport('json')">JSON</button>
+        <button class="gj-exp-btn" onclick="gjExport('kml')">KML</button>
+        <button class="gj-exp-btn" onclick="gjExport('excel')">Excel</button>
+        <button class="gj-exp-btn" onclick="gjExport('clear')" style="color:#f87171;">Xóa</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     TOOL 3: GEOVISION PRO
+================================================================ -->
+<div id="panel-geovision" class="tool-panel">
+  <div class="gv-sidebar">
+    <div class="gv-header">
+      <h1><i class="fa-solid fa-satellite-dish"></i> GeoVision Pro</h1>
+      <p>Trích xuất Metadata GPS từ ảnh & Web GIS</p>
+    </div>
+    <div class="gv-ctrl">
+      <div>
+        <div class="gv-sec-title">1. Nạp dữ liệu hình ảnh</div>
+        <div class="gv-drop-box" id="gvDrop">
+          <i class="fa-solid fa-cloud-arrow-up fa-2x" style="color:#3b82f6;margin-bottom:6px;"></i><br>
+          <span style="font-weight:600;color:#60a5fa;font-size:12px;">Kéo & thả ảnh vào đây</span><br>
+          <span style="font-size:10px;color:#64748b;margin-top:3px;display:block;">Hỗ trợ JPEG, PNG, TIFF</span>
+          <input type="file" id="gvFileInput" multiple accept="image/jpeg,image/png,image/tiff" style="display:none"/>
+        </div>
+      </div>
+      <div>
+        <div class="gv-sec-title">2. Xuất dữ liệu GIS</div>
+        <div class="gv-export-grid">
+          <button class="gv-exp-btn" onclick="gvExport('csv')"><i class="fa-solid fa-file-csv"></i> CSV</button>
+          <button class="gv-exp-btn" onclick="gvExport('xlsx')"><i class="fa-solid fa-file-excel"></i> XLSX</button>
+          <button class="gv-exp-btn" onclick="gvExport('geojson')"><i class="fa-solid fa-code"></i> GeoJSON</button>
+          <button class="gv-exp-btn" onclick="gvExport('kml')"><i class="fa-solid fa-earth-americas"></i> KML</button>
+          <button class="gv-exp-btn" onclick="gvExport('kmz')"><i class="fa-solid fa-file-zipper"></i> KMZ</button>
+          <button class="gv-exp-btn" onclick="gvExport('gpx')"><i class="fa-solid fa-route"></i> GPX</button>
+        </div>
+      </div>
+      <div>
+        <div class="gv-sec-title">3. Công cụ hệ thống</div>
+        <div class="gv-tool-row">
+          <button class="gv-tool-btn" id="gvBtnUndo" onclick="gvUndo()"><i class="fa-solid fa-rotate-left"></i> Undo</button>
+          <button class="gv-tool-btn" id="gvBtnRedo" onclick="gvRedo()"><i class="fa-solid fa-rotate-right"></i> Redo</button>
+        </div>
+        <button class="gv-danger-btn" onclick="gvClearAll()"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ dữ liệu</button>
+      </div>
+    </div>
+  </div>
+  <div class="gv-main">
+    <div id="mapGeoVision"></div>
+    <div class="gv-table-panel">
+      <div class="gv-tbl-hdr">
+        <h2><i class="fa-solid fa-table-list"></i> KẾT QUẢ TRÍCH XUẤT (WGS84)</h2>
+        <div class="gv-tbl-stats">Thành công: <strong id="gvValid" style="color:#10b981">0</strong> | Lỗi: <strong id="gvInvalid" style="color:#f87171">0</strong></div>
+      </div>
+      <div class="gv-tbl-body">
+        <table class="gv-tbl">
+          <thead><tr><th>Tên File</th><th>Vĩ độ (Lat)</th><th>Kinh độ (Lng)</th><th>Cao độ (m MSL)</th></tr></thead>
+          <tbody id="gvValidBody"></tbody>
+        </table>
+        <div class="gv-err-cont" id="gvErrCont" style="display:none">
+          <h3><i class="fa-solid fa-triangle-exclamation"></i> Không tìm thấy GPS:</h3>
+          <ul id="gvInvalidList" style="list-style:none;font-size:11px;color:#f87171;margin-top:4px;"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     TOOL 4: GEODATA PLATFORM
+================================================================ -->
+<div id="panel-geodata" class="tool-panel">
+  <div class="gd-sidebar">
+    <div class="gd-header">
+      <h1><i class="fa-solid fa-satellite"></i> GeoData Platform</h1>
+      <p>Thu thập & chuyển đổi dữ liệu GIS</p>
+    </div>
+    <div class="gd-ctrl">
+      <div>
+        <label class="gd-form-lbl"><i class="fa-solid fa-magnifying-glass"></i> Tìm kiếm địa điểm</label>
+        <div class="gd-search-box">
+          <input type="text" class="gd-search-input" id="gdSearch" placeholder="Nhập địa điểm hoặc tọa độ..." onkeydown="if(event.key==='Enter')gdSearchLoc()">
+          <button class="gd-search-btn" onclick="gdSearchLoc()"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+      </div>
+      <div>
+        <label class="gd-form-lbl"><i class="fa-solid fa-layer-group"></i> Bản đồ nền</label>
+        <div class="gd-layer-box">
+          <label><input type="radio" name="gdLayer" value="satellite" checked onchange="gdChangeLayer()"> 🛰️ Vệ tinh</label>
+          <label><input type="radio" name="gdLayer" value="hybrid" onchange="gdChangeLayer()"> 🧭 Hybrid</label>
+          <label><input type="radio" name="gdLayer" value="map" onchange="gdChangeLayer()"> 🗺️ Đường phố</label>
+        </div>
+      </div>
+      <div>
+        <label class="gd-form-lbl"><i class="fa-solid fa-file-import"></i> Nhập file KML / KMZ</label>
+        <div class="gd-file-upload">
+          <button class="gd-upload-btn"><i class="fa-solid fa-upload"></i> Chọn File Tải Lên</button>
+          <input type="file" id="gdFileInput" accept=".kml,.kmz" onchange="gdHandleFile(event)"/>
+        </div>
+      </div>
+      <div>
+        <label class="gd-form-lbl"><i class="fa-solid fa-location-dot"></i> Danh sách điểm (<span id="gdPtCount" style="color:#3b82f6">0</span>)</label>
+        <div class="gd-pt-list-wrap">
+          <ul class="gd-pt-list" id="gdPtList"></ul>
+        </div>
+        <button class="gd-clear-btn" onclick="gdClearAll()"><i class="fa-solid fa-trash"></i> Xóa toàn bộ điểm</button>
+      </div>
+      <div>
+        <label class="gd-form-lbl"><i class="fa-solid fa-file-export"></i> Xuất dữ liệu</label>
+        <div class="gd-action-grid">
+          <button class="gd-action-btn" onclick="gdExport('csv')"><i class="fa-solid fa-file-csv"></i> CSV</button>
+          <button class="gd-action-btn" onclick="gdExport('xlsx')"><i class="fa-solid fa-file-excel"></i> XLSX</button>
+          <button class="gd-action-btn" onclick="gdExport('geojson')"><i class="fa-solid fa-code"></i> GeoJSON</button>
+          <button class="gd-action-btn" onclick="gdExport('kml')"><i class="fa-solid fa-map-location-dot"></i> KML</button>
+          <button class="gd-action-btn" onclick="gdExport('kmz')"><i class="fa-solid fa-file-zipper"></i> KMZ</button>
+          <button class="gd-action-btn" onclick="gdExport('gpx')"><i class="fa-solid fa-route"></i> GPX</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="mapGeoData"></div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast-msg" id="toastMsg"></div>
+
+<!-- ================================================================
+     SCRIPTS
+================================================================ -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+<script src="https://unpkg.com/@mapbox/togeojson@0.16.0/togeojson.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+
+<script>
+/* ================================================================
+   SHARED UTILITIES
+================================================================ */
+function showToast(msg, duration=2500) {
+  const t = document.getElementById('toastMsg');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function downloadFile(content, name, mime) {
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function fileToGeoJSON(file) {
+  const n = file.name.toLowerCase();
+  if (n.endsWith('.geojson') || n.endsWith('.json')) {
+    return JSON.parse(await file.text());
+  } else if (n.endsWith('.kml')) {
+    const xml = new DOMParser().parseFromString(await file.text(), 'text/xml');
+    return toGeoJSON.kml(xml);
+  } else if (n.endsWith('.kmz')) {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const kf = Object.values(zip.files).find(f => f.name.toLowerCase().endsWith('.kml'));
+    if (!kf) throw new Error('KMZ không chứa file KML hợp lệ.');
+    const xml = new DOMParser().parseFromString(await kf.async('string'), 'text/xml');
+    return toGeoJSON.kml(xml);
+  }
+  throw new Error('Định dạng không hỗ trợ: ' + file.name);
+}
+
+function geojsonToKML(geojson) {
+  let kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n`;
+  (geojson.features || []).forEach(f => {
+    const name = (f.properties && (f.properties.name || f.properties.Name || f.properties.NAME)) || 'Feature';
+    kml += `  <Placemark>\n    <name>${name}</name>\n`;
+    const g = f.geometry;
+    if (!g) { kml += '  </Placemark>\n'; return; }
+    if (g.type === 'Point') {
+      kml += `    <Point><coordinates>${g.coordinates[0]},${g.coordinates[1]},${g.coordinates[2]||0}</coordinates></Point>\n`;
+    } else if (g.type === 'LineString') {
+      kml += `    <LineString><coordinates>${g.coordinates.map(c=>c.join(',')).join(' ')}</coordinates></LineString>\n`;
+    } else if (g.type === 'Polygon') {
+      kml += `    <Polygon><outerBoundaryIs><LinearRing><coordinates>${g.coordinates[0].map(c=>c.join(',')).join(' ')}</coordinates></LinearRing></outerBoundaryIs></Polygon>\n`;
+    }
+    kml += '  </Placemark>\n';
+  });
+  kml += '</Document>\n</kml>';
+  return kml;
+}
+
+function gTypeIcon(type) {
+  if (!type) return '❓';
+  if (type.includes('Point')) return '📍';
+  if (type.includes('Line')) return '〰️';
+  if (type.includes('Polygon')) return '⬡';
+  return '🗺️';
+}
+
+/* ================================================================
+   TAB SWITCHER
+================================================================ */
+const tabInited = {};
+
+function switchTab(name) {
+  document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+
+  setTimeout(() => {
+    if (!tabInited[name]) {
+      tabInited[name] = true;
+      if (name === 'kml')       initKML();
+      if (name === 'geojson')   initGeoJSON();
+      if (name === 'geovision') initGeoVision();
+      if (name === 'geodata')   initGeoData();
+    } else {
+      if (name === 'kml'       && window.mapKML)       window.mapKML.invalidateSize();
+      if (name === 'geojson'   && window.mapGeoJSON)   window.mapGeoJSON.invalidateSize();
+      if (name === 'geovision' && window.mapGeoVision) window.mapGeoVision.invalidateSize();
+      if (name === 'geodata'   && window.mapGeoData)   window.mapGeoData.invalidateSize();
+    }
+  }, 50);
+}
+
+/* ================================================================
+   TOOL 1: KML VIEWER
+================================================================ */
+function initKML() {
+  const map = L.map('mapKML', {zoomControl: false, attributionControl: false})
+               .setView([16.047079, 108.20623], 5);
+  window.mapKML = map;
+
+  const googleSat    = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
+  const googleMap    = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
+  const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&hl=vi&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
+
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  L.control.scale({position:'bottomleft', imperial:false}).addTo(map);
+
+  const btnMap = document.getElementById('kBtnMap');
+  const btnSat = document.getElementById('kBtnSat');
+  const btnHyb = document.getElementById('kBtnHybrid');
+  const coord  = document.getElementById('kCoord');
+
+  function setLayer(l, btn) {
+    [googleSat, googleMap, googleHybrid].forEach(x => map.removeLayer(x));
+    l.addTo(map);
+    [btnMap, btnSat, btnHyb].forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  btnMap.onclick = () => setLayer(googleMap, btnMap);
+  btnSat.onclick = () => setLayer(googleSat, btnSat);
+  btnHyb.onclick = () => setLayer(googleHybrid, btnHyb);
+
+  map.on('mousemove', e => {
+    coord.innerText = `Lat: ${e.latlng.lat.toFixed(5)} | Lng: ${e.latlng.lng.toFixed(5)} | Zoom: ${map.getZoom()}`;
+  });
+  map.on('zoomend', () => {
+    const c = map.getCenter();
+    coord.innerText = `Lat: ${c.lat.toFixed(5)} | Lng: ${c.lng.toFixed(5)} | Zoom: ${map.getZoom()}`;
+  });
+
+  const drop    = document.getElementById('kDrop');
+  const input   = document.getElementById('kFileInput');
+  const choose  = document.getElementById('kChooseBtn');
+  const loading = document.getElementById('kLoading');
+  const list    = document.getElementById('kLayerList');
+  const layers  = {};
+
+  choose.onclick = e => { e.stopPropagation(); input.click(); };
+  drop.onclick = () => input.click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('dragover'); };
+  drop.ondragleave = () => drop.classList.remove('dragover');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('dragover'); handleKmlFiles(e.dataTransfer.files); };
+  input.onchange = e => { if (e.target.files.length) handleKmlFiles(e.target.files); };
+
+  async function handleKmlFiles(files) {
+    loading.style.display = 'flex';
+    for (const file of files) {
+      try {
+        const geojson = await fileToGeoJSON(file);
+        const colors = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c'];
+        const color = colors[Object.keys(layers).length % colors.length];
+        const id = 'k_' + Date.now() + Math.random();
+        const layer = L.geoJSON(geojson, {
+          style: {color, weight:2, fillOpacity:0.3},
+          pointToLayer: (f, ll) => L.circleMarker(ll, {radius:6, color:'#fff', fillColor:color, fillOpacity:0.85, weight:2}),
+          onEachFeature: (f, l) => {
+            if (f.properties) {
+              let html = '<div style="max-height:180px;overflow:auto;font-size:12px;">';
+              for (const k in f.properties) {
+                if (k !== 'styleUrl' && k !== 'styleHash' && f.properties[k] != null)
+                  html += `<b>${k}:</b> ${f.properties[k]}<br>`;
+              }
+              l.bindPopup(html + '</div>');
+            }
+          }
+        }).addTo(map);
+        if (layer.getBounds().isValid()) map.fitBounds(layer.getBounds(), {padding:[50,50]});
+        layers[id] = layer;
+        if (list.querySelector('.k-no-file')) list.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'k-layer-item';
+        div.innerHTML = `
+          <div style="display:flex;align-items:center;gap:6px;overflow:hidden;">
+            <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block;"></span>
+            <input type="checkbox" checked onchange="kToggleLayer('${id}',this.checked)" style="cursor:pointer;flex-shrink:0;">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;" title="${file.name}">${file.name}</span>
+          </div>
+          <div style="display:flex;gap:3px;flex-shrink:0;">
+            <button onclick="kZoomLayer('${id}')" title="Zoom"><i class="fa-solid fa-magnifying-glass" style="color:#3b82f6;font-size:12px;"></i></button>
+            <button onclick="kRemoveLayer('${id}',this)" title="Xóa"><i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:12px;"></i></button>
+          </div>`;
+        list.appendChild(div);
+        showToast(`✅ Đã tải: ${file.name}`);
+      } catch(err) { showToast(`❌ Lỗi: ${err.message}`, 4000); }
+    }
+    input.value = '';
+    loading.style.display = 'none';
+  }
+
+  window.kToggleLayer = (id, on) => { if(layers[id]) { on ? map.addLayer(layers[id]) : map.removeLayer(layers[id]); } };
+  window.kZoomLayer   = (id) => { if(layers[id] && layers[id].getBounds().isValid()) map.fitBounds(layers[id].getBounds(),{padding:[50,50]}); };
+  window.kRemoveLayer = (id, btn) => {
+    if(layers[id]) { layers[id].remove(); delete layers[id]; }
+    btn.closest('.k-layer-item').remove();
+    if (!list.querySelector('.k-layer-item')) list.innerHTML = '<div class="k-no-file">Chưa có file nào được tải</div>';
+  };
+}
+
+/* ================================================================
+   TOOL 2: GEOJSON EDITOR
+================================================================ */
+let gjMap, gjEditor, gjData = {type:'FeatureCollection', features:[]}, gjSelectedIdx = -1;
+
+function initGeoJSON() {
+  gjMap = L.map('mapGeoJSON', {zoomControl:false, attributionControl:false}).setView([16.047079, 108.20623], 5);
+  window.mapGeoJSON = gjMap;
+
+  const sat  = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']}).addTo(gjMap);
+  const road = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
+  L.control.zoom({position:'bottomright'}).addTo(gjMap);
+  gjMap.on('mousemove', e => {
+    document.getElementById('gjCoord').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+  });
+
+  // Init CodeMirror
+  gjEditor = CodeMirror.fromTextArea(document.getElementById('gjJsonTextarea'), {
+    mode: {name:'javascript', json:true},
+    lineNumbers: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    foldGutter: true,
+    gutters: ['CodeMirror-linenumbers','CodeMirror-foldgutter'],
+    theme: 'default',
+    lineWrapping: false,
+    tabSize: 2,
+    indentWithTabs: false
+  });
+
+  document.getElementById('gjImportBtn').onclick = () => document.getElementById('gjFileInput').click();
+  document.getElementById('gjFileInput').onchange = async e => {
+    for (const file of e.target.files) {
+      try {
+        const gj = await fileToGeoJSON(file);
+        if (gj.type === 'FeatureCollection') {
+          gjData.features.push(...gj.features);
+        } else if (gj.type === 'Feature') {
+          gjData.features.push(gj);
+        }
+      } catch(err) { showToast('❌ ' + err.message, 4000); }
+    }
+    e.target.value = '';
+    gjRenderAll();
+    showToast('✅ Đã import thành công!');
+  };
+
+  document.getElementById('gjApplyBtn').onclick = () => {
+    try {
+      gjData = JSON.parse(gjEditor.getValue());
+      gjRenderAll();
+      showToast('✅ Đã áp dụng lên bản đồ!');
+    } catch(e) { showToast('❌ JSON không hợp lệ: ' + e.message, 4000); }
+  };
+
+  gjSetEditorValue(gjData);
+}
+
+let gjGeoLayer = null;
+
+function gjRenderAll() {
+  if (gjGeoLayer) gjMap.removeLayer(gjGeoLayer);
+  const colors = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899'];
+  let ci = 0;
+  gjGeoLayer = L.geoJSON(gjData, {
+    style: f => {
+      const c = colors[ci++ % colors.length];
+      return {color: c, weight:2, fillOpacity:0.3, fillColor:c};
+    },
+    pointToLayer: (f, ll) => {
+      const c = colors[ci % colors.length];
+      return L.circleMarker(ll, {radius:6, color:'#fff', fillColor:c, fillOpacity:0.85, weight:2});
+    },
+    onEachFeature: (f, l) => {
+      if (f.properties) {
+        let h = '<div style="font-size:12px;max-height:200px;overflow:auto;">';
+        for (const k in f.properties) if(f.properties[k]!=null) h += `<b>${k}:</b> ${f.properties[k]}<br>`;
+        l.bindPopup(h + '</div>');
+      }
+    }
+  }).addTo(gjMap);
+
+  if (gjGeoLayer.getBounds && gjGeoLayer.getBounds().isValid()) {
+    gjMap.fitBounds(gjGeoLayer.getBounds(), {padding:[40,40]});
+  }
+
+  gjSetEditorValue(gjData);
+  gjRenderFeatureList();
+  gjRenderTable();
+  document.getElementById('gjFeatCount').textContent = (gjData.features||[]).length + ' features';
+}
+
+function gjSetEditorValue(data) {
+  if (gjEditor) gjEditor.setValue(JSON.stringify(data, null, 2));
+}
+
+function gjRenderFeatureList() {
+  const list = document.getElementById('gjFeatList');
+  list.innerHTML = '';
+  (gjData.features || []).forEach((f, i) => {
+    const name = (f.properties && (f.properties.name || f.properties.Name || f.properties.NAME)) || ('Feature ' + (i+1));
+    const div = document.createElement('div');
+    div.className = 'gj-feat-item' + (i === gjSelectedIdx ? ' selected' : '');
+    div.innerHTML = `<span class="gj-feature-icon">${gTypeIcon(f.geometry && f.geometry.type)}</span> <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" title="${name}">${name}</span>`;
+    div.onclick = () => { gjSelectedIdx = i; gjRenderFeatureList(); gjSetEditorValue(f); gjSwitchTab('json'); };
+    list.appendChild(div);
+  });
+}
+
+function gjRenderTable() {
+  const head = document.getElementById('gjTblHead');
+  const body = document.getElementById('gjTblBody');
+  head.innerHTML = ''; body.innerHTML = '';
+  const features = gjData.features || [];
+  if (!features.length) return;
+  const keys = new Set();
+  features.forEach(f => f.properties && Object.keys(f.properties).forEach(k => keys.add(k)));
+  const cols = ['#', ...keys];
+  cols.forEach(k => { const th = document.createElement('th'); th.textContent = k; head.appendChild(th); });
+  features.forEach((f, i) => {
+    const tr = document.createElement('tr');
+    const tdIdx = document.createElement('td'); tdIdx.textContent = i+1; tr.appendChild(tdIdx);
+    keys.forEach(k => { const td = document.createElement('td'); td.textContent = (f.properties && f.properties[k] != null) ? f.properties[k] : ''; tr.appendChild(td); });
+    body.appendChild(tr);
+  });
+}
+
+function gjSwitchTab(t) {
+  document.getElementById('gjTabJSON').classList.toggle('active', t==='json');
+  document.getElementById('gjTabTable').classList.toggle('active', t==='table');
+  document.getElementById('gjPanelJSON').classList.toggle('hidden', t!=='json');
+  document.getElementById('gjPanelTable').classList.toggle('hidden', t!=='table');
+  if (t === 'json' && gjEditor) gjEditor.refresh();
+}
+
+function gjExport(type) {
+  const features = gjData.features || [];
+  if (type === 'clear') {
+    if (confirm('Xóa toàn bộ dữ liệu?')) { gjData = {type:'FeatureCollection', features:[]}; gjRenderAll(); }
+    return;
+  }
+  if (!features.length) { showToast('⚠️ Không có dữ liệu để xuất!'); return; }
+  if (type === 'json') {
+    downloadFile(JSON.stringify(gjData, null, 2), 'export.geojson', 'application/json');
+  } else if (type === 'kml') {
+    downloadFile(geojsonToKML(gjData), 'export.kml', 'application/vnd.google-earth.kml+xml');
+  } else if (type === 'excel') {
+    const keys = new Set(); features.forEach(f => f.properties && Object.keys(f.properties).forEach(k=>keys.add(k)));
+    const rows = [['#','Geometry',...keys]];
+    features.forEach((f,i) => rows.push([i+1, f.geometry&&f.geometry.type, ...[...keys].map(k=>f.properties&&f.properties[k]!=null?f.properties[k]:'')]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'GeoJSON Data');
+    XLSX.writeFile(wb, 'export.xlsx');
+  }
+  showToast('✅ Đã xuất file thành công!');
+}
+
+/* ================================================================
+   TOOL 3: GEOVISION PRO
+================================================================ */
+let gvMapObj, gvCluster, gvExtracted = [], gvErrors = 0, gvHistory = [], gvStep = -1, gvDrawnCounter = 0;
+
+function initGeoVision() {
+  // Fix Leaflet default icon
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+
+  gvMapObj = L.map('mapGeoVision', {zoomControl:false}).setView([16.047079, 108.20623], 5);
+  window.mapGeoVision = gvMapObj;
+
+  const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {maxZoom:20, subdomains:'abcd'}).addTo(gvMapObj);
+  const satMap  = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['0','1','2','3']});
+  const lightMap= L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {maxZoom:20, subdomains:'abcd'});
+
+  L.control.layers({'Tối':darkMap,'Vệ tinh':satMap,'Sáng':lightMap}).addTo(gvMapObj);
+  L.control.zoom({position:'bottomright'}).addTo(gvMapObj);
+
+  gvMapObj.pm.addControls({position:'topleft', drawCircle:false, drawCircleMarker:false, drawText:false, cutPolygon:false});
+  gvMapObj.pm.setLang('en');
+
+  gvCluster = L.markerClusterGroup();
+  gvMapObj.addLayer(gvCluster);
+
+  // pm:create – fetch elevation for every drawn feature
+  gvMapObj.pm.on('pm:create', e => {
+    const layer = e.layer;
+    const shape = e.shape || 'Shape';
+    gvDrawnCounter++;
+    const cnt = gvDrawnCounter;
+
+    layer.on('pm:edit pm:dragend', () => gvSaveState());
+
+    if (layer instanceof L.Marker) {
+      // ── Single marker ──────────────────────────────────────────
+      const ll = layer.getLatLng();
+      const dp = { file:`Marker_${cnt}`, lat:Number(ll.lat.toFixed(7)), lng:Number(ll.lng.toFixed(7)), alt:null, _drawn:true };
+      gvExtracted.push(dp);
+      gvRenderRow(dp);
+      gvUpdateStats();
+      layer.bindPopup(gvBuildDrawnPopup(dp, true), {maxWidth:300}).openPopup();
+      gvFetchElevation(ll.lat, ll.lng).then(elev => {
+        dp.alt = (elev !== null) ? elev : 'N/A';
+        layer.setPopupContent(gvBuildDrawnPopup(dp, false));
+        document.getElementById('gvValidBody').innerHTML = '';
+        gvExtracted.forEach(d => gvRenderRow(d));
+        gvSaveState();
+      });
+
+    } else if (typeof layer.getLatLngs === 'function') {
+      // ── Line / Polygon ─────────────────────────────────────────
+      const flat = [];
+      (function flatLL(arr){ arr.forEach(x=>{ if(x.lat!==undefined) flat.push(x); else flatLL(x); }); })(layer.getLatLngs());
+      if (!flat.length) { gvSaveState(); return; }
+
+      layer.bindPopup(`<div style="font-size:12px;padding:6px;color:#38bdf8;">
+        ⏳ Đang truy vấn cao độ <b>${flat.length}</b> điểm…</div>`).openPopup();
+
+      // Batch call – OpenTopoData accepts up to 100 pts per request
+      const batches = [];
+      for (let i = 0; i < flat.length; i += 100)
+        batches.push(flat.slice(i, i + 100));
+
+      Promise.all(batches.map(pts =>
+        fetch(`https://api.opentopodata.org/v1/srtm30m?locations=${pts.map(p=>`${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join('|')}`)
+          .then(r => r.json())
+          .catch(() => ({results: pts.map(()=>({elevation:null}))}))
+      )).then(results => {
+        const elevations = results.flatMap(d => (d.results||[]).map(r=>r.elevation));
+        const ptRows = [];
+        flat.forEach((ll, i) => {
+          const alt = (elevations[i] !== null && elevations[i] !== undefined) ? elevations[i] : 'N/A';
+          const dp = { file:`${shape}_${cnt}_P${i+1}`, lat:Number(ll.lat.toFixed(7)), lng:Number(ll.lng.toFixed(7)), alt, _drawn:true };
+          gvExtracted.push(dp);
+          ptRows.push(dp);
+        });
+        document.getElementById('gvValidBody').innerHTML = '';
+        gvExtracted.forEach(d => gvRenderRow(d));
+        gvUpdateStats();
+        layer.setPopupContent(gvBuildShapePopup(shape, cnt, flat, elevations));
+        gvSaveState();
+      });
+
+    } else {
+      gvSaveState();
+    }
+  });
+
+  gvMapObj.pm.on('pm:remove', () => gvSaveState());
+
+  const drop  = document.getElementById('gvDrop');
+  const input = document.getElementById('gvFileInput');
+  drop.onclick = () => input.click();
+  drop.ondragover = e => { e.preventDefault(); drop.style.borderColor='#10b981'; };
+  drop.ondragleave = () => { drop.style.borderColor='#3b82f6'; };
+  drop.ondrop = e => { e.preventDefault(); drop.style.borderColor='#3b82f6'; gvHandleFiles(e.dataTransfer.files); };
+  input.onchange = () => { gvHandleFiles(input.files); input.value=''; };
+
+  setTimeout(gvSaveState, 300);
+}
+
+async function gvFetchElevation(lat, lng) {
+  try {
+    const r = await fetch(`https://api.opentopodata.org/v1/srtm30m?locations=${lat},${lng}`);
+    const d = await r.json();
+    if (d.results && d.results[0]) return d.results[0].elevation;
+  } catch(e) {}
+  return null;
+}
+
+function gvToDMS(dec, isLat) {
+  const abs = Math.abs(dec), d = Math.floor(abs), m = Math.floor((abs-d)*60), s = ((abs-d)*60-m)*60;
+  const dir = isLat ? (dec>=0?'N':'S') : (dec>=0?'E':'W');
+  return `${d}°${String(m).padStart(2,'0')}'${s.toFixed(2)}"${dir}`;
+}
+
+function gvBuildPopup(data, loading=false) {
+  const elev = loading ? '<span style="color:#f59e0b;font-style:italic;">⏳ Đang truy vấn...</span>'
+    : (data.alt===null||data.alt===undefined ? '<span style="color:#94a3b8;">N/A</span>'
+    : `<span style="color:#10b981;font-weight:700;">${data.alt} m</span>`);
+  return `<div style="min-width:240px;font-family:'Segoe UI',sans-serif;font-size:12px;">
+    <div style="background:#0f172a;padding:8px 12px;margin:-12px -12px 10px;border-radius:4px 4px 0 0;border-bottom:2px solid #0ea5e9;">
+      <div style="font-weight:700;color:#38bdf8;">🖼️ ${data.file}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;line-height:1.8;">
+      <tr><td style="color:#94a3b8;">Vĩ độ (DD)</td><td style="text-align:right;font-family:monospace;">${data.lat}</td></tr>
+      <tr><td style="color:#94a3b8;">Kinh độ (DD)</td><td style="text-align:right;font-family:monospace;">${data.lng}</td></tr>
+      <tr><td style="color:#94a3b8;">DMS Lat</td><td style="text-align:right;font-size:10px;">${gvToDMS(data.lat,true)}</td></tr>
+      <tr><td style="color:#94a3b8;">DMS Lng</td><td style="text-align:right;font-size:10px;">${gvToDMS(data.lng,false)}</td></tr>
+      <tr><td style="color:#94a3b8;">⛰️ Cao độ</td><td style="text-align:right;">${elev}</td></tr>
+    </table>
+  </div>`;
+}
+
+// Popup for a single drawn Marker
+function gvBuildDrawnPopup(data, loading=false) {
+  const elev = loading
+    ? '<span style="color:#f59e0b;font-style:italic;">⏳ Đang truy vấn…</span>'
+    : (data.alt===null||data.alt===undefined
+        ? '<span style="color:#94a3b8;">N/A</span>'
+        : `<span style="color:#10b981;font-weight:700;">${data.alt} m</span>`);
+  return `<div style="min-width:240px;font-family:'Segoe UI',sans-serif;font-size:12px;">
+    <div style="background:#0f172a;padding:8px 12px;margin:-12px -12px 10px;border-radius:4px 4px 0 0;border-bottom:2px solid #10b981;">
+      <div style="font-weight:700;color:#34d399;">📌 ${data.file}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px;">Điểm đánh dấu</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;line-height:1.9;">
+      <tr><td style="color:#94a3b8;">Vĩ độ (DD)</td><td style="text-align:right;font-family:monospace;">${data.lat}</td></tr>
+      <tr><td style="color:#94a3b8;">Kinh độ (DD)</td><td style="text-align:right;font-family:monospace;">${data.lng}</td></tr>
+      <tr><td style="color:#94a3b8;">DMS Lat</td><td style="text-align:right;font-size:10px;">${gvToDMS(data.lat,true)}</td></tr>
+      <tr><td style="color:#94a3b8;">DMS Lng</td><td style="text-align:right;font-size:10px;">${gvToDMS(data.lng,false)}</td></tr>
+      <tr style="border-top:1px solid #1e293b;">
+        <td style="color:#94a3b8;">⛰️ Cao độ đất (SRTM)</td>
+        <td style="text-align:right;">${elev}</td>
+      </tr>
+    </table>
+  </div>`;
+}
+
+// Popup summary for a drawn Line / Polygon (shows vertex table)
+function gvBuildShapePopup(shape, cnt, flat, elevations) {
+  const valid = elevations.filter(e=>e!==null&&e!==undefined);
+  const minE  = valid.length ? Math.min(...valid).toFixed(1) : 'N/A';
+  const maxE  = valid.length ? Math.max(...valid).toFixed(1) : 'N/A';
+  const avgE  = valid.length ? (valid.reduce((a,b)=>a+b,0)/valid.length).toFixed(1) : 'N/A';
+  let rows = '';
+  flat.forEach((ll,i) => {
+    const e = (elevations[i]!==null&&elevations[i]!==undefined) ? `${elevations[i]} m` : 'N/A';
+    rows += `<tr>
+      <td style="color:#94a3b8;padding:3px 4px;">P${i+1}</td>
+      <td style="font-family:monospace;font-size:10px;padding:3px 4px;">${ll.lat.toFixed(5)}</td>
+      <td style="font-family:monospace;font-size:10px;padding:3px 4px;">${ll.lng.toFixed(5)}</td>
+      <td style="color:#10b981;font-weight:600;padding:3px 4px;">${e}</td>
+    </tr>`;
+  });
+  return `<div style="min-width:280px;max-height:320px;overflow:auto;font-family:'Segoe UI',sans-serif;font-size:12px;">
+    <div style="background:#0f172a;padding:8px 12px;margin:-12px -12px 10px;border-radius:4px 4px 0 0;border-bottom:2px solid #f59e0b;position:sticky;top:0;">
+      <div style="font-weight:700;color:#fbbf24;">〰️ ${shape}_${cnt} (${flat.length} điểm)</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px;">Min: ${minE} | Max: ${maxE} | TB: ${avgE}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead style="position:sticky;top:38px;background:#111827;">
+        <tr>
+          <th style="color:#64748b;padding:4px;text-align:left;font-size:10px;">#</th>
+          <th style="color:#64748b;padding:4px;text-align:left;font-size:10px;">Lat</th>
+          <th style="color:#64748b;padding:4px;text-align:left;font-size:10px;">Lng</th>
+          <th style="color:#64748b;padding:4px;text-align:left;font-size:10px;">Cao độ</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function gvHandleFiles(files) {
+  let done = 0, total = files.length;
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = function() {
+        EXIF.getData(img, function() {
+          const lat = EXIF.getTag(this, 'GPSLatitude');
+          const lon = EXIF.getTag(this, 'GPSLongitude');
+          const latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+          const lonRef = EXIF.getTag(this, 'GPSLongitudeRef');
+          if (lat && lon) {
+            const latDD = gvConvDD(lat, latRef);
+            const lngDD = gvConvDD(lon, lonRef);
+            const dp = {file: file.name, lat: latDD, lng: lngDD, alt: null};
+            gvExtracted.push(dp);
+            gvRenderRow(dp);
+            const marker = L.marker([latDD, lngDD]).bindPopup(gvBuildPopup(dp, true), {maxWidth:280});
+            gvCluster.addLayer(marker);
+            gvFetchElevation(latDD, lngDD).then(elev => {
+              dp.alt = elev !== null ? elev : 'N/A';
+              marker.setPopupContent(gvBuildPopup(dp, false));
+              document.getElementById('gvValidBody').innerHTML = '';
+              gvExtracted.forEach(d => gvRenderRow(d));
+            });
+          } else { gvRenderError(file.name); }
+          gvUpdateStats();
+          done++;
+          if (done === total) {
+            if (gvExtracted.length > 0 && gvCluster.getBounds().isValid())
+              gvMapObj.fitBounds(gvCluster.getBounds(), {padding:[30,30], maxZoom:17});
+            gvSaveState();
+          }
+        });
+      };
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function gvConvDD(dms, ref) {
+  if (!dms || dms.length < 3) return 0;
+  let dd = (dms[0].numerator/dms[0].denominator) + (dms[1].numerator/dms[1].denominator)/60 + (dms[2].numerator/dms[2].denominator)/3600;
+  if (ref==='S'||ref==='W') dd *= -1;
+  return Number(dd.toFixed(7));
+}
+
+function gvRenderRow(data) {
+  const body = document.getElementById('gvValidBody');
+  const row = body.insertRow();
+  const icon = data._drawn ? '📌' : '🖼️';
+  const nameColor = data._drawn ? '#34d399' : '#60a5fa';
+  let altHtml = (data.alt === null || data.alt === undefined)
+    ? '<span style="color:#94a3b8;font-style:italic">Đang tải…</span>'
+    : data.alt === 'N/A' ? '<span style="color:#f87171;">N/A</span>'
+    : `<span style="color:#10b981;font-weight:600;">${data.alt} m</span>`;
+  row.innerHTML = `<td style="color:${nameColor};">${icon} ${data.file}</td>
+    <td style="font-family:monospace;font-size:11px;">${data.lat}</td>
+    <td style="font-family:monospace;font-size:11px;">${data.lng}</td>
+    <td>${altHtml}</td>`;
+}
+
+function gvRenderError(name) {
+  gvErrors++;
+  document.getElementById('gvErrCont').style.display = 'block';
+  const li = document.createElement('li');
+  li.innerHTML = `❌ ${name}`;
+  li.style.marginBottom = '4px';
+  document.getElementById('gvInvalidList').appendChild(li);
+}
+
+function gvUpdateStats() {
+  document.getElementById('gvValid').textContent = gvExtracted.length;
+  document.getElementById('gvInvalid').textContent = gvErrors;
+}
+
+function gvSaveState() {
+  gvHistory = gvHistory.slice(0, gvStep + 1);
+  const geoman = [];
+  gvMapObj.pm.getGeomanLayers().forEach(l => { try { geoman.push(l.toGeoJSON()); } catch(e){} });
+  const cluster = [];
+  gvCluster.getLayers().forEach(l => {
+    cluster.push({lat:l.getLatLng().lat, lng:l.getLatLng().lng, popup: l.getPopup()?l.getPopup().getContent():''});
+  });
+  gvHistory.push({
+    extracted: JSON.parse(JSON.stringify(gvExtracted)),
+    errors: gvErrors,
+    drawnCounter: gvDrawnCounter,
+    geoman,
+    cluster
+  });
+  gvStep++;
+  gvUpdateUndoRedo();
+}
+
+function gvUpdateUndoRedo() {
+  document.getElementById('gvBtnUndo').disabled = gvStep <= 0;
+  document.getElementById('gvBtnRedo').disabled = gvStep >= gvHistory.length - 1;
+}
+
+function gvRestoreState(idx) {
+  const s = gvHistory[idx]; gvStep = idx;
+  gvExtracted = JSON.parse(JSON.stringify(s.extracted));
+  gvErrors = s.errors;
+  if (s.drawnCounter !== undefined) gvDrawnCounter = s.drawnCounter;
+  document.getElementById('gvValidBody').innerHTML = '';
+  document.getElementById('gvInvalidList').innerHTML = '';
+  document.getElementById('gvErrCont').style.display = 'none';
+  gvExtracted.forEach(d => gvRenderRow(d));
+  gvCluster.clearLayers();
+  gvMapObj.pm.getGeomanLayers().forEach(l => { try{gvMapObj.removeLayer(l);}catch(e){} });
+  s.cluster.forEach(pt => {
+    const m = L.marker([pt.lat, pt.lng]);
+    if (pt.popup) m.bindPopup(pt.popup);
+    gvCluster.addLayer(m);
+  });
+  s.geoman.forEach(geo => L.geoJSON(geo, {onEachFeature:(f,l) => gvMapObj.addLayer(l)}));
+  gvUpdateStats();
+  gvUpdateUndoRedo();
+}
+
+function gvUndo() { if (gvStep > 0) gvRestoreState(gvStep - 1); }
+function gvRedo() { if (gvStep < gvHistory.length - 1) gvRestoreState(gvStep + 1); }
+
+function gvClearAll() {
+  if (!confirm('Xóa toàn bộ dữ liệu và bản đồ?')) return;
+  gvExtracted = []; gvErrors = 0; gvDrawnCounter = 0;
+  document.getElementById('gvValidBody').innerHTML = '';
+  document.getElementById('gvInvalidList').innerHTML = '';
+  document.getElementById('gvErrCont').style.display = 'none';
+  gvUpdateStats();
+  gvCluster.clearLayers();
+  gvMapObj.pm.getGeomanLayers().forEach(l => { try{gvMapObj.removeLayer(l);}catch(e){} });
+  gvMapObj.setView([16.047079, 108.20623], 5);
+  gvSaveState();
+  showToast('✅ Đã xóa toàn bộ dữ liệu!');
+}
+
+function gvGetCombinedData() {
+  // All points (from images AND drawn features) are already in gvExtracted
+  return [...gvExtracted];
+}
+
+function gvGetGeoJSON() {
+  // Points (image & drawn markers) from gvExtracted
+  const features = gvExtracted.map(d => ({
+    type:'Feature',
+    properties:{ name:d.file, altitude: (d.alt !== 'N/A' && d.alt !== null) ? d.alt : 0, source: d._drawn ? 'drawn' : 'image' },
+    geometry:{ type:'Point', coordinates:[d.lng, d.lat, (d.alt !== 'N/A' && d.alt !== null) ? d.alt : 0] }
+  }));
+  // Non-marker drawn geometries (lines, polygons) – add as-is
+  gvMapObj.pm.getGeomanLayers().forEach((l, i) => {
+    if (l instanceof L.Marker || l instanceof L.CircleMarker) return;
+    try {
+      const g = l.toGeoJSON();
+      g.properties = g.properties || {};
+      g.properties.name = `DrawnShape_${i+1}`;
+      features.push(g);
+    } catch(e){}
+  });
+  return { type:'FeatureCollection', features };
+}
+
+function gvCheckData() {
+  if (gvExtracted.length===0 && gvMapObj.pm.getGeomanLayers().length===0) { showToast('⚠️ Chưa có dữ liệu để xuất!'); return false; }
+  return true;
+}
+
+function gvExport(type) {
+  if (!gvCheckData()) return;
+  const data = gvGetCombinedData();
+  if (type === 'csv') {
+    let csv = '\uFEFFFileName,Latitude,Longitude,Altitude\n';
+    data.forEach(d => csv += `"${d.file}",${d.lat},${d.lng},${d.alt}\n`);
+    downloadFile(csv, 'GeoVision_Export.csv', 'text/csv;charset=utf-8;');
+  } else if (type === 'xlsx') {
+    const rows = [['Tên File','Vĩ độ','Kinh độ','Cao độ (m)']];
+    data.forEach(d => rows.push([d.file, d.lat, d.lng, d.alt]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'GPS Data');
+    XLSX.writeFile(wb, 'GeoVision_Export.xlsx');
+  } else if (type === 'geojson') {
+    downloadFile(JSON.stringify(gvGetGeoJSON(), null, 2), 'GeoVision_Export.geojson', 'application/json');
+  } else if (type === 'kml') {
+    downloadFile(geojsonToKML(gvGetGeoJSON()), 'GeoVision_Export.kml', 'application/vnd.google-earth.kml+xml');
+  } else if (type === 'kmz') {
+    (async()=>{
+      const zip = new JSZip(); zip.file('doc.kml', geojsonToKML(gvGetGeoJSON()));
+      const blob = await zip.generateAsync({type:'blob'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='GeoVision_Export.kmz'; a.click();
+    })();
+  } else if (type === 'gpx') {
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoVision Pro" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+    data.forEach(d => gpx += `  <wpt lat="${d.lat}" lon="${d.lng}">\n    <ele>${d.alt||0}</ele>\n    <name>${d.file}</name>\n  </wpt>\n`);
+    gpx += '</gpx>';
+    downloadFile(gpx, 'GeoVision_Export.gpx', 'application/gpx+xml');
+  }
+  showToast('✅ Đã xuất file thành công!');
+}
+
+/* ================================================================
+   TOOL 4: GEODATA PLATFORM
+================================================================ */
+let gdMapObj, gdPoints = [], gdMarkers = {}, gdCounter = 0;
+let gdSatLayer, gdMapLayer, gdHybridLayer;
+
+function initGeoData() {
+  gdMapObj = L.map('mapGeoData', {zoomControl:true}).setView([16.047079, 108.20623], 6);
+  window.mapGeoData = gdMapObj;
+
+  gdSatLayer    = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
+  gdMapLayer    = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19});
+  gdHybridLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=y&hl=vi&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
+  gdSatLayer.addTo(gdMapObj);
+
+  gdMapObj.on('click', e => gdAddPoint(e.latlng.lat, e.latlng.lng));
+}
+
+function gdChangeLayer() {
+  const val = document.querySelector('input[name="gdLayer"]:checked').value;
+  gdMapObj.eachLayer(l => { if (l instanceof L.TileLayer) gdMapObj.removeLayer(l); });
+  if (val === 'map')       gdMapLayer.addTo(gdMapObj);
+  if (val === 'satellite') gdSatLayer.addTo(gdMapObj);
+  if (val === 'hybrid')    gdHybridLayer.addTo(gdMapObj);
+}
+
+function gdAddPoint(lat, lng, name = null) {
+  gdCounter++;
+  const id = 'gd_' + Date.now() + Math.random();
+  const n = name || ('Điểm ' + gdCounter);
+  const marker = L.marker([lat, lng]).addTo(gdMapObj);
+  marker.bindPopup(`<b>${n}</b><br>Lat: ${lat.toFixed(6)}<br>Lng: ${lng.toFixed(6)}`);
+  gdPoints.push({id, name: n, lat, lng});
+  gdMarkers[id] = marker;
+  gdRenderList();
+}
+
+function gdRemovePoint(id) {
+  if (gdMarkers[id]) { gdMapObj.removeLayer(gdMarkers[id]); delete gdMarkers[id]; }
+  gdPoints = gdPoints.filter(p => p.id !== id);
+  gdRenderList();
+}
+
+function gdClearAll() {
+  if (!confirm('Xóa toàn bộ điểm?')) return;
+  Object.values(gdMarkers).forEach(m => gdMapObj.removeLayer(m));
+  gdMarkers = {}; gdPoints = []; gdCounter = 0;
+  gdRenderList();
+  showToast('✅ Đã xóa toàn bộ điểm!');
+}
+
+function gdRenderList() {
+  const ul = document.getElementById('gdPtList');
+  ul.innerHTML = '';
+  document.getElementById('gdPtCount').textContent = gdPoints.length;
+  gdPoints.forEach(pt => {
+    const li = document.createElement('li');
+    li.className = 'gd-pt-item';
+    li.innerHTML = `<div class="gd-pt-info"><b>${pt.name}</b><span>${pt.lat.toFixed(5)}, ${pt.lng.toFixed(5)}</span></div>
+      <button onclick="gdRemovePoint('${pt.id}')" style="background:rgba(239,68,68,.3);border:none;color:#fca5a5;padding:4px 7px;border-radius:3px;font-size:11px;">✕</button>`;
+    ul.appendChild(li);
+  });
+}
+
+function gdSearchLoc() {
+  const q = document.getElementById('gdSearch').value.trim();
+  if (!q) return;
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.length > 0) {
+        const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+        gdMapObj.setView([lat, lng], 15);
+        gdAddPoint(lat, lng, data[0].display_name ? data[0].display_name.split(',')[0] : 'Điểm tìm kiếm');
+      } else { showToast('⚠️ Không tìm thấy địa điểm!'); }
+    }).catch(() => showToast('❌ Lỗi kết nối tìm kiếm!'));
+}
+
+async function gdHandleFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const n = file.name.toLowerCase();
+    let kmlText;
+    if (n.endsWith('.kml')) {
+      kmlText = await file.text();
+    } else if (n.endsWith('.kmz')) {
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const kf = Object.values(zip.files).find(f => f.name.toLowerCase().endsWith('.kml'));
+      if (!kf) { showToast('❌ KMZ không chứa KML hợp lệ!'); return; }
+      kmlText = await kf.async('string');
+    }
+    gdParseKML(kmlText);
+  } catch(e) { showToast('❌ Lỗi: ' + e.message); }
+  event.target.value = '';
+}
+
+function gdParseKML(kmlText) {
+  const xml = new DOMParser().parseFromString(kmlText, 'text/xml');
+  const coords = xml.getElementsByTagName('coordinates');
+  let count = 0;
+  for (let i = 0; i < coords.length; i++) {
+    coords[i].textContent.trim().split(/\s+/).forEach(c => {
+      const parts = c.split(',');
+      if (parts.length >= 2) {
+        const lng = parseFloat(parts[0]), lat = parseFloat(parts[1]);
+        if (!isNaN(lat) && !isNaN(lng)) { gdAddPoint(lat, lng); count++; }
+      }
+    });
+  }
+  if (count > 0 && gdPoints.length > 0) {
+    gdMapObj.setView([gdPoints[gdPoints.length-1].lat, gdPoints[gdPoints.length-1].lng], 12);
+    showToast(`✅ Đã nhập ${count} điểm từ KML!`);
+  } else { showToast('⚠️ Không tìm thấy tọa độ hợp lệ trong file!'); }
+}
+
+function gdCheckData() {
+  if (!gdPoints.length) { showToast('⚠️ Chưa có điểm dữ liệu để xuất!'); return false; }
+  return true;
+}
+
+function gdGenKML() {
+  let kml = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n  <Document>\n    <name>GeoData Export</name>\n`;
+  gdPoints.forEach(p => kml += `    <Placemark>\n      <name>${p.name}</name>\n      <Point><coordinates>${p.lng},${p.lat},0</coordinates></Point>\n    </Placemark>\n`);
+  kml += '  </Document>\n</kml>';
+  return kml;
+}
+
+function gdExport(type) {
+  if (!gdCheckData()) return;
+  if (type === 'csv') {
+    let csv = '\uFEFFTen,Vi_do,Kinh_do\n' + gdPoints.map(p => `${p.name},${p.lat},${p.lng}`).join('\n');
+    downloadFile(csv, 'GeoData_Export.csv', 'text/csv;charset=utf-8;');
+  } else if (type === 'xlsx') {
+    const ws = XLSX.utils.json_to_sheet(gdPoints.map(p => ({'Tên Điểm':p.name,'Vĩ độ':p.lat,'Kinh độ':p.lng})));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ToaDo');
+    XLSX.writeFile(wb, 'GeoData_Export.xlsx');
+  } else if (type === 'geojson') {
+    const gj = {type:'FeatureCollection', features: gdPoints.map(p => ({type:'Feature',properties:{name:p.name},geometry:{type:'Point',coordinates:[p.lng,p.lat]}}))};
+    downloadFile(JSON.stringify(gj, null, 2), 'GeoData_Export.geojson', 'application/json');
+  } else if (type === 'kml') {
+    downloadFile(gdGenKML(), 'GeoData_Export.kml', 'application/vnd.google-earth.kml+xml');
+  } else if (type === 'kmz') {
+    (async()=>{
+      const zip = new JSZip(); zip.file('doc.kml', gdGenKML());
+      const blob = await zip.generateAsync({type:'blob'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='GeoData_Export.kmz'; a.click();
+    })();
+  } else if (type === 'gpx') {
+    let gpx = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="GeoDataPlatform" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+    gdPoints.forEach(p => gpx += `  <wpt lat="${p.lat}" lon="${p.lng}">\n    <name>${p.name}</name>\n  </wpt>\n`);
+    gpx += '</gpx>';
+    downloadFile(gpx, 'GeoData_Export.gpx', 'application/gpx+xml');
+  }
+  showToast('✅ Đã xuất file thành công!');
+}
+
+/* ================================================================
+   INIT ON LOAD
+================================================================ */
+window.addEventListener('DOMContentLoaded', () => {
+  tabInited['kml'] = true;
+  initKML();
+});
+</script>
+
+</body>
+</html>
